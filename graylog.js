@@ -143,8 +143,8 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
         message.full_message  = short_message.stack;
 
         // extract error file and line
-        fileinfo = message.stack.split('\n')[0];
-        fileinfo = fileinfo.substr(fileinfo.indexOf('('), fileinfo.indeOf(')'));
+        fileinfo = message.full_message.split('\n')[1];
+        fileinfo = fileinfo.substr((fileinfo.indexOf('(') + 1), fileinfo.indexOf(')'));
         fileinfo = fileinfo.split(':');
 
         message.file = fileinfo[0];
