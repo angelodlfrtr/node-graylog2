@@ -254,26 +254,22 @@ graylog.prototype.send = function (chunk, server, cb) {
   client.send(chunk, 0, chunk.length, server.port, server.host, function (err) {
     that._unsentChunks -= 1;
 
-    if (err) {
+    if (err)
       that.emit('error', err);
-    }
 
-    if (cb) {
+    if (cb)
       cb(err);
-    }
 
-    if (that._unsentChunks === 0 && that._unsentMessages === 0 && that._onClose) {
+    if (that._unsentChunks === 0 && that._unsentMessages === 0 && that._onClose)
       that._onClose();
-    }
   });
 };
 
 graylog.prototype.emitError = function (err) {
     this.emit('error', err);
 
-    if (this._unsentChunks === 0 && this._unsentMessages === 0 && this._onClose) {
+    if (this._unsentChunks === 0 && this._unsentMessages === 0 && this._onClose)
       this._onClose();
-    }
 };
 
 graylog.prototype.close = function (cb) {
@@ -283,9 +279,8 @@ graylog.prototype.close = function (cb) {
     return process.nextTick(function () {
       var error = new Error('Close was already called once');
 
-      if (cb) {
+      if (cb)
         return cb(error);
-      }
 
       that.emit('error', error);
     });
@@ -294,9 +289,8 @@ graylog.prototype.close = function (cb) {
   this._onClose = function () {
     that.destroy();
 
-    if (cb) {
+    if (cb)
       cb();
-    }
   };
 
   if (this._unsentChunks === 0 && this._unsentMessages === 0) {
