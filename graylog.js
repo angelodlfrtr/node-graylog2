@@ -13,41 +13,41 @@ var zlib         = require('zlib'),
 var graylog = function graylog(config) {
     EventEmitter.call(this);
 
-    this.config       = config;
+    this.config   = config;
+    this.servers  = config.servers;
+    this.client   = null;
+    this.hostname = config.hostname || require('os').hostname();
+    this.facility = config.facility || 'Node.js';
+    this.deflate  = config.deflate || 'optimal';
 
-    this.servers      = config.servers;
-    this.client       = null;
-    this.hostname     = config.hostname || require('os').hostname();
-    this.facility     = config.facility || 'Node.js';
-    this.deflate      = config.deflate || 'optimal';
     assert(
       this.deflate === 'optimal' || this.deflate === 'always' || this.deflate === 'never',
       'deflate must be one of "optimal", "always", or "never". was "' + this.deflate + '"');
 
     this._unsentMessages = 0;
-    this._unsentChunks = 0;
-    this._callCount   = 0;
-
-    this._onClose = null;
-    this._isDestroyed = false;
-
-    this._bufferSize  = config.bufferSize || this.DEFAULT_BUFFERSIZE;
+    this._unsentChunks   = 0;
+    this._callCount      = 0;
+    this._onClose        = null;
+    this._isDestroyed    = false;
+    this._bufferSize     = config.bufferSize || this.DEFAULT_BUFFERSIZE;
 };
 
 util.inherits(graylog, EventEmitter);
 
-graylog.prototype.DEFAULT_BUFFERSIZE = 1400;  // a bit less than a typical MTU of 1500 to be on the safe side
+graylog.prototype.DEFAULT_BUFFERSIZE = 1400; // A bit less than a typical MTU of 1500 to be on the safe side
 
+// Define log levels for graylog server
 graylog.prototype.level = {
-    EMERG: 0,    // system is unusable
-    ALERT: 1,    // action must be taken immediately
-    CRIT: 2,     // critical conditions
-    ERR: 3,      // error conditions
-    ERROR: 3,    // because people WILL typo
-    WARNING: 4,  // warning conditions
-    NOTICE: 5,   // normal, but significant, condition
-    INFO: 6,     // informational message
-    DEBUG: 7     // debug level message
+    EMERGENCY: 0, // system is unusable
+    ALERT:     1, // action must be taken immediately
+    CRITICAL:  2, // critical conditions
+    ERR:       3, // error conditions
+    ERROR:     3, // because people WILL typo
+    WARNING:   4, // warning conditions
+    NOTICE:    5, // normal, but significant, condition
+    INFO:      6, // informational message
+    LOG:       6, // informational message
+    DEBUG:     7  // debug level message
 };
 
 graylog.prototype.getServer = function () {
@@ -71,45 +71,51 @@ graylog.prototype.destroy = function () {
     if (this.client) {
         this.client.close();
         this.client.removeAllListeners();
-        this.client = null;
-        this._onClose = null;
+
+        this.client       = null;
+        this._onClose     = null;
         this._isDestroyed = true;
     }
 };
 
-graylog.prototype.emergency = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.EMERG);
-};
+for (k in graylog.prototype.level) {
+    var v = graylog.prototype.level[k];
 
-graylog.prototype.alert = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.ALERT);
-};
+    graylog.prototype[k.toLowerCase()] = function(short_message, full_message, additionalFields, timestamp) {
+      return this._log(short_message, full_message, additionalFields, timestamp, v);
+    }
+}
 
-graylog.prototype.critical = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.CRIT);
-};
+// Load default handlers
+graylog.prototype.handlers = [
+  function(short_message, full_message, additionalFields) {
+      if (typeof(short_message) !== 'object' && typeof(full_message) === 'object' && additionalFields === undefined) {
+          // Only short message and additional fields are available
+          short_message    = short_message;
+          full_message     = short_message;
+          additionalFields = full_message;
 
-graylog.prototype.error = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.ERROR);
-};
+          return [short_message, full_message, additionalFields];
+      }
+  },
 
-graylog.prototype.warning = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.WARNING);
-};
-graylog.prototype.warn = graylog.prototype.warning;
+  function(short_message, full_message, additionalFields) {
+      if (typeof(short_message) !== 'object') {
+          // We normally set the data
+          short_message = short_message;
+          full_message  = full_message || short_message;
 
-graylog.prototype.notice = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.NOTICE);
-};
+          return [short_message, full_message, additionalFields];
+      }
+  },
 
-graylog.prototype.info = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.INFO);
-};
-graylog.prototype.log = graylog.prototype.info;
+  // Final handler (if no previous handler returned result)
+  function(short_message, full_message, additionalFields) {
+      full_message = message.short_message = JSON.stringify(short_message);
 
-graylog.prototype.debug = function (short_message, full_message, additionalFields, timestamp) {
-    return this._log(short_message, full_message, additionalFields, timestamp, this.level.DEBUG);
-};
+      return [short_message, full_message, additionalFields];
+  }
+]
 
 graylog.prototype._log = function log(short_message, full_message, additionalFields, timestamp, level) {
     this._unsentMessages += 1;
@@ -119,41 +125,31 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
         that    = this,
         field   = '',
         message = {
-            version    : '1.0',
-            timestamp  : (timestamp || new Date()).getTime() / 1000,
-            host       : this.hostname,
-            facility   : this.facility,
-            level      : level
+            version:   '1.0',
+            timestamp: (timestamp || new Date()).getTime() / 1000,
+            host:      this.hostname,
+            facility:  this.facility,
+            level:     level
         };
 
-    if (typeof(short_message) !== 'object' && typeof(full_message) === 'object' && additionalFields === undefined) {
-        // Only short message and additional fields are available
-        message.short_message   = short_message;
-        message.full_message    = short_message;
+    // Load handlers
+    for (handler in this.handlers) {
+        let handler_result = handler(short_message, full_message, additionalFields)
 
-        additionalFields = full_message;
-    } else  if (typeof(short_message) !== 'object') {
-        // We normally set the data
-        message.short_message   = short_message;
-        message.full_message    = full_message || short_message;
-    } else if (short_message.stack && short_message.message) {
+        if (handler_result && typeof(handler_result) === 'array') {
+            // Short message
+            message.short_message = handler_result[0]
 
-        // Short message is an Error message, we process accordingly
-        message.short_message = short_message.message;
-        message.full_message  = short_message.stack;
+            // Long message
+            if (handler_result[1])
+                message.long_message = handler_result[0];
 
-        additionalFields = full_message || additionalFields || {};
+            // Additional fields
+            if (handler_result[2])
+                additionalFields = handler_result[2];
 
-        // extract error file, line and col
-        fileinfo = message.full_message.split('\n')[1];
-        fileinfo = fileinfo.slice(fileinfo.indexOf('(') + 1, -1);
-        fileinfo = fileinfo.split(':');
-
-        additionalFields.file = fileinfo[0];
-        additionalFields.line = fileinfo[1];
-        additionalFields.col = fileinfo[2];
-    } else {
-        message.full_message = message.short_message = JSON.stringify(short_message);
+            break;
+        }
     }
 
     // We insert additional fields
@@ -201,8 +197,8 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
             }
 
             // To be tested: what's faster, sending as we go or prebuffering?
-            var server = that.getServer();
-            var chunk = new Buffer(bufferSize);
+            var server              = that.getServer();
+            var chunk               = new Buffer(bufferSize);
             var chunkSequenceNumber = 0;
 
             // Prepare the header
@@ -256,7 +252,6 @@ graylog.prototype.send = function (chunk, server, cb) {
 
     if (!client) {
         var error = new Error('Socket was already destroyed');
-
         this.emit('error', error);
         return cb(error);
     }
