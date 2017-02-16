@@ -38,16 +38,17 @@ graylog.prototype.DEFAULT_BUFFERSIZE = 1400; // A bit less than a typical MTU of
 
 // Define log levels for graylog server
 graylog.prototype.level = {
-  EMERGENCY: 0, // system is unusable
-  ALERT:     1, // action must be taken immediately
-  CRITICAL:  2, // critical conditions
-  ERR:       3, // error conditions
-  ERROR:     3, // because people WILL typo
-  WARNING:   4, // warning conditions
-  NOTICE:    5, // normal, but significant, condition
-  INFO:      6, // informational message
-  LOG:       6, // informational message
-  DEBUG:     7  // debug level message
+  emergency: 0, // system is unusable
+  alert:     1, // action must be taken immediately
+  critical:  2, // critical conditions
+  err:       3, // error conditions
+  error:     3, // because people will typo
+  warning:   4, // warning conditions
+  warn:      4, // warning conditions
+  notice:    5, // normal, but significant, condition
+  info:      6, // informational message
+  log:       6, // informational message
+  debug:     7  // debug level message
 };
 
 graylog.prototype.getServer = function () {
@@ -81,7 +82,7 @@ graylog.prototype.destroy = function () {
 for (k in graylog.prototype.level) {
   var v = graylog.prototype.level[k];
 
-  graylog.prototype[k.toLowerCase()] = function(short_message, full_message, additionalFields, timestamp) {
+  graylog.prototype[k] = function(short_message, full_message, additionalFields, timestamp) {
     return this._log(short_message, full_message, additionalFields, timestamp, v);
   }
 }
@@ -125,8 +126,8 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
         level:     level
       };
 
-  // Load handlers
-  for (handler in this.handlers) {
+  for (var i = 0; i < this.handlers.length; i++) {
+    var handler        = this.handlers[i];
     let handler_result = handler(short_message, full_message, additionalFields)
 
     if (handler_result && typeof(handler_result) === 'array') {
