@@ -111,6 +111,11 @@ graylog.prototype.handlers = [
   },
 ]
 
+// Allow user to parse messages
+graylog.prototype.registerHandler = function(func) {
+  this.handlers.unshift(func);
+};
+
 graylog.prototype._log = function log(short_message, full_message, additionalFields, timestamp, level) {
   this._unsentMessages += 1;
 
@@ -129,11 +134,11 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
 
   for (var i = 0; i < this.handlers.length; i++) {
     var handler        = this.handlers[i];
-    let handler_result = handler(short_message, full_message, additionalFields)
+    var handler_result = handler(short_message, full_message, additionalFields);
 
     if (handler_result && typeof (handler_result) === 'array') {
       // Short message
-      message.short_message = handler_result[0]
+      message.short_message = handler_result[0];
 
       // Long message
       if (handler_result[1]) {
