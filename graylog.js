@@ -136,7 +136,7 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
     var handler        = this.handlers[i];
     var handler_result = handler(short_message, full_message, additionalFields);
 
-    if (handler_result && typeof (handler_result) === 'array') {
+    if (handler_result) {
       // Short message
       message.short_message = handler_result[0];
 
@@ -155,8 +155,10 @@ graylog.prototype._log = function log(short_message, full_message, additionalFie
   }
 
   // We insert additional fields
-  for (field in additionalFields) {
-    message['_' + field] = additionalFields[field];
+  if (additionalFields) {
+    for (field in additionalFields) {
+      message['_' + field] = additionalFields[field];
+    }
   }
 
   // https://github.com/Graylog2/graylog2-docs/wiki/GELF
