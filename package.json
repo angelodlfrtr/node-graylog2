@@ -17,6 +17,7 @@
     }
   ],
   "devDependencies": {
+    "jscs": "^3.0.7",
     "jshint": "0.9.1"
   },
   "engines": {
@@ -30,6 +31,7 @@
     "url": "http://github.com/Wizcorp/node-graylog2.git"
   },
   "scripts": {
-    "test": "node ./test"
+    "test": "node ./test",
+    "syntax": "jscs ."
   }
 }
