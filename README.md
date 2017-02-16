@@ -95,8 +95,8 @@ logger.registerHandler(function(short_message, full_message, additional_fields) 
 
   // Ex, log node Error message :
   if (short_message.message && short_message.stack) {
-    var file_infos = short_message.split('\n')[1];
-    fileinfo = fileinfo.slice(fileinfo.indexOf('(') + 1, -1);
+    var fileinfo = short_message.split('\n')[1];
+    fileinfo = fileinfo.stack.slice(fileinfo.indexOf('(') + 1, -1);
     fileinfo = fileinfo.split(':');
 
     additional_fields = additional_fields || {};
