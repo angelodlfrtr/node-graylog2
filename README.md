@@ -87,6 +87,31 @@ logger.close(function(){
 });
 ```
 
+Add custom message parser :
+```javascript
+logger.registerHandler(function(short_message, full_message, additional_fields) {
+  // If function return arguments, the message is sent
+  // Else, next handler is loaded
+
+  // Ex, log node Error message :
+  if (short_message.message && short_message.stack) {
+    var file_infos = short_message.split('\n')[1];
+    fileinfo = fileinfo.slice(fileinfo.indexOf('(') + 1, -1);
+    fileinfo = fileinfo.split(':');
+
+    additional_fields = additional_fields || {};
+    additional_fields.file = fileinfo[0];
+    additional_fields.line = fileinfo[1];
+    additional_fields.col = fileinfo[2];
+
+    full_message = short_message.stack;
+    short_message = short_message.message;
+
+    return [short_message, full_message, additional_fields];
+  }
+})
+```
+
 ## Example
 
 See `test.js`.
